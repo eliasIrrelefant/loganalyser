@@ -1,0 +1,33 @@
+---
+
+logformat: '%{X-Forwarded-For}i %l %u %t "%r" %>s %b "%{Referer}i" "%{User-Agent}i" "%{Host}i" %D "%{Age}o" %{If-Modified-Since}i "%{X-CipherName}i" "%{X-CipherVersion}i" "%{X-CipherBits}i" "%{SSL-FRONTEND}i"'
+
+queries:
+  - name: "Anzahl DB Einträge"
+    description: "Ermittelt die Anzahl der Einträge in der LOGDATA Tabelle."
+    query: |+
+      select 
+        count(*)
+      from logdata
+    comment: Kommentar
+    
+  - name: Seiten mit den häufigsten Abrufen
+    query: select path, count(*) as count from logdata group by path order by count(*) desc
+  
+  - name : Seiten mit der höchsten Antwortzeit
+    query: select path, sum(responsetime / 1000) as sum_responsetime_ms from logdata group by path order by sum(responsetime / 1000) desc
+
+  - name : Statistik häufige IP Adressen
+    query: |+
+      select
+        ip,
+        count(*),
+        (100.0 * count(*) / ( select count(*) from logdata where requestdate > '2015-06-10 15:00:00' )) as anteil_count,
+        sum(responsetime), 
+        (100.0 * sum(responsetime) / (select sum(responsetime) from logdata where requestdate > '2015-06-10 15:00:00' )) as anteil_responsetime
+      from logdata
+      where
+        requestdate > '2015-06-10 15:00:00' 
+      group by ip 
+      order by sum(responsetime) desc
+    
