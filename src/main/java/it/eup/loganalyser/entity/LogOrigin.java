@@ -1,7 +1,6 @@
 package it.eup.loganalyser.entity;
 
 import java.util.Date;
-
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
@@ -23,27 +22,27 @@ import lombok.NoArgsConstructor;
 @Table(name = "origin")
 public class LogOrigin {
 
-    @Id
-    @GeneratedValue
-    private Long id;
+  @Id
+  @GeneratedValue
+  private Long id;
 
-    @Column(length = 1024, nullable = false)
-    private String path;
+  @Column(length = 1024, nullable = false)
+  private String path;
 
-    @Column(nullable = false)
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date importDate = new Date();
+  @Column(nullable = false)
+  @Temporal(TemporalType.TIMESTAMP)
+  private Date importDate = new Date();
 
-    @Column(name = "total_count")
-    private Long totalCount;
-    
-    @Column(name = "error_count")
-    private Long errorsCount;
+  @Column(name = "total_count")
+  private Long totalCount;
 
-    @Column(name = "imported_count")
-    private Long successCount;
+  @Column(name = "error_count")
+  private Long errorsCount;
 
-    @Column(name = "filtered_count")
-    private Long filteredCount;
+  @Column(name = "imported_count")
+  private Long successCount;
+
+  @Column(name = "filtered_count")
+  private Long filteredCount;
 
 }

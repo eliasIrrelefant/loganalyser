@@ -7,15 +7,15 @@ import org.junit.Test;
 
 public class BooleanConverterTest {
 
-	BooleanConverter sut = new BooleanConverter();
-	
-	@Test
-	public void minusIsConvertedToNull() throws Exception {
-		assertNull(sut.convert("-"));
-	}
-	
-	@Test
-	public void yesIsConvertedToTrue() throws Exception {
-		assertEquals(Boolean.TRUE, sut.convert("yes"));
-	}
+  BooleanConverter sut = new BooleanConverter();
+
+  @Test
+  public void minusIsConvertedToNull() throws Exception {
+    assertNull(sut.convert("-"));
+  }
+
+  @Test
+  public void yesIsConvertedToTrue() throws Exception {
+    assertEquals(Boolean.TRUE, sut.convert("yes"));
+  }
 }

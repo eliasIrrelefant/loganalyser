@@ -4,5 +4,5 @@ import it.eup.loganalyser.entity.LogDataRow;
 
 public interface ValueAccessor<T> {
 
-	T getValue(LogDataRow dataRow);
+  T getValue(LogDataRow dataRow);
 }

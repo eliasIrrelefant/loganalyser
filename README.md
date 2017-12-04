@@ -11,7 +11,8 @@
 - Hibernate
 - H2-Database
 - Java FX UI
-- Maven Build
+- SpringBoot
+- Gradle Build
 
 ## Requirements
 

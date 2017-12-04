@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class QueryDao {
 
-  List<String> indexColumns = Arrays.asList("PATH", "STATUSCODE", "RESPONSETIME", "REQUESTDATE", "QUERYSTRING");
+  List<String> indexColumns = Arrays.asList("PATH", "STATUS_CODE", "RESPONSE_TIME", "REQUEST_DATE", "QUERY_STRING");
 
   @Autowired
   private DataSource dataSource;

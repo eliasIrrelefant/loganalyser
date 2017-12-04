@@ -3,9 +3,6 @@ package it.eup.loganalyser.gui;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
-import org.apache.commons.lang3.exception.ExceptionUtils;
-
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonType;
@@ -13,144 +10,145 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 
 public class DialogBuilder {
 
-	private AlertType type = AlertType.CONFIRMATION;
-	private String title;
-	private String headerText;
-	private String contentText;
-	private Throwable throwable;
-	private List<ButtonType> stageButtons = new ArrayList<>();
+  private AlertType type = AlertType.CONFIRMATION;
+  private String title;
+  private String headerText;
+  private String contentText;
+  private Throwable throwable;
+  private List<ButtonType> stageButtons = new ArrayList<>();
 
-	public DialogBuilder() {
-	}
+  public DialogBuilder() {
+  }
 
-	public DialogBuilder createDefaultDialog(String title, String headerText) {
-		withTitle(title);
-		withHeaderText(headerText);
+  public DialogBuilder createDefaultDialog(String title, String headerText) {
+    withTitle(title);
+    withHeaderText(headerText);
 
-		return this;
-	}
+    return this;
+  }
 
-	public DialogBuilder createDefaultYesNoDialog(String title, String headerText) {
-		withTitle(title);
-		withHeaderText(headerText);
+  public DialogBuilder createDefaultYesNoDialog(String title, String headerText) {
+    withTitle(title);
+    withHeaderText(headerText);
 
-		withButtons(ButtonType.YES, ButtonType.NO);
+    withButtons(ButtonType.YES, ButtonType.NO);
 
-		return this;
-	}
+    return this;
+  }
 
-	public DialogBuilder createExceptionDialog(String title, String headerText, Exception e) {
-		withTitle(title);
-		withHeaderText(headerText);
-		this.throwable = e;
+  public DialogBuilder createExceptionDialog(String title, String headerText, Exception e) {
+    withTitle(title);
+    withHeaderText(headerText);
+    this.throwable = e;
 
-		return this;
-	}
+    return this;
+  }
 
-	public DialogBuilder withTitle(String title) {
-		this.title = title;
-		return this;
-	}
+  public DialogBuilder withTitle(String title) {
+    this.title = title;
+    return this;
+  }
 
-	public DialogBuilder withHeaderText(String headerText) {
-		this.headerText = headerText;
-		return this;
-	}
+  public DialogBuilder withHeaderText(String headerText) {
+    this.headerText = headerText;
+    return this;
+  }
 
-	public DialogBuilder withContentMessage(String contentText) {
-		this.contentText = contentText;
-		return this;
-	}
+  public DialogBuilder withContentMessage(String contentText) {
+    this.contentText = contentText;
+    return this;
+  }
 
-	public DialogBuilder addStageButton(String buttonText) {
-		this.stageButtons.add(new ButtonType(buttonText));
-		return this;
-	}
+  public DialogBuilder addStageButton(String buttonText) {
+    this.stageButtons.add(new ButtonType(buttonText));
+    return this;
+  }
 
-	public DialogBuilder withNoButtons() {
-		this.stageButtons = new ArrayList<>();
-		return this;
-	}
+  public DialogBuilder withNoButtons() {
+    this.stageButtons = new ArrayList<>();
+    return this;
+  }
 
-	public DialogBuilder withOkButton() {
-		this.stageButtons = Arrays.asList(new ButtonType("OK"));
-		return this;
-	}
+  public DialogBuilder withOkButton() {
+    this.stageButtons = Arrays.asList(new ButtonType("OK"));
+    return this;
+  }
 
-	public DialogBuilder withButtons(ButtonType... buttons) {
-		stageButtons = Arrays.asList(buttons);
-		return this;
-	}
+  public DialogBuilder withButtons(ButtonType... buttons) {
+    stageButtons = Arrays.asList(buttons);
+    return this;
+  }
 
-	public DialogBuilder withButtons(String... buttons) {
-		stageButtons = new ArrayList<>();
+  public DialogBuilder withButtons(String... buttons) {
+    stageButtons = new ArrayList<>();
 
-		for (String s : buttons) {
-			stageButtons.add(new ButtonType(s));
-		}
+    for (String s : buttons) {
+      stageButtons.add(new ButtonType(s));
+    }
 
-		return this;
-	}
+    return this;
+  }
 
-	public Alert build() {
-		Alert alert = new Alert(type);
+  public Alert build() {
+    Alert alert = new Alert(type);
 
-		alert.setTitle(title);
+    alert.setTitle(title);
 
-		if (headerText != null) {
-			alert.setHeaderText(headerText);
-		}
+    if (headerText != null) {
+      alert.setHeaderText(headerText);
+    }
 
-		if (contentText != null) {
-			alert.setHeaderText(contentText);
-		}
+    if (contentText != null) {
+      alert.setHeaderText(contentText);
+    }
 
-		if (throwable != null) {
-			if (contentText== null) {
-				alert.setContentText(throwable.getLocalizedMessage());
-			}
-			
-			String stacktrace = ExceptionUtils.getStackTrace(throwable);
-			addScrollableReadonlyTextArea(alert, stacktrace);
-		}
+    if (throwable != null) {
+      if (contentText == null) {
+        alert.setContentText(throwable.getLocalizedMessage());
+      }
 
-		if (stageButtons.isEmpty() == false) {
-			alert.getButtonTypes().clear();
+      String stacktrace = ExceptionUtils.getStackTrace(throwable);
+      addScrollableReadonlyTextArea(alert, stacktrace);
+    }
 
-			for (ButtonType button : stageButtons) {
-				alert.getButtonTypes().add(button);
-			}
-		}
+    if (stageButtons.isEmpty() == false) {
+      alert.getButtonTypes().clear();
 
-		return alert;
-	}
+      for (ButtonType button : stageButtons) {
+        alert.getButtonTypes().add(button);
+      }
+    }
 
-	private void addScrollableReadonlyTextArea(Alert alert, String stacktrace) {
-		Label label = new Label("Stacktrace");
+    return alert;
+  }
 
-		TextArea textArea = new TextArea(stacktrace);
-		textArea.setEditable(false);
-		textArea.setWrapText(true);
+  private void addScrollableReadonlyTextArea(Alert alert, String stacktrace) {
+    Label label = new Label("Stacktrace");
 
-		textArea.setMaxWidth(Double.MAX_VALUE);
-		textArea.setMaxHeight(Double.MAX_VALUE);
-		GridPane.setVgrow(textArea, Priority.ALWAYS);
-		GridPane.setHgrow(textArea, Priority.ALWAYS);
+    TextArea textArea = new TextArea(stacktrace);
+    textArea.setEditable(false);
+    textArea.setWrapText(true);
 
-		GridPane content = new GridPane();
-		content.setMaxWidth(Double.MAX_VALUE);
-		content.add(label, 0, 0);
-		content.add(textArea, 0, 1);
-		
-		alert.getDialogPane().setExpandableContent(content);
-	}
+    textArea.setMaxWidth(Double.MAX_VALUE);
+    textArea.setMaxHeight(Double.MAX_VALUE);
+    GridPane.setVgrow(textArea, Priority.ALWAYS);
+    GridPane.setHgrow(textArea, Priority.ALWAYS);
 
-	public DialogBuilder withThrowable(Throwable t) {
-		this.throwable = t;
-		return this;
-	}
+    GridPane content = new GridPane();
+    content.setMaxWidth(Double.MAX_VALUE);
+    content.add(label, 0, 0);
+    content.add(textArea, 0, 1);
+
+    alert.getDialogPane().setExpandableContent(content);
+  }
+
+  public DialogBuilder withThrowable(Throwable t) {
+    this.throwable = t;
+    return this;
+  }
 
 }

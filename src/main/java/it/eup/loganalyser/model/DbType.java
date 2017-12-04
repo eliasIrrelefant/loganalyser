@@ -1,5 +1,5 @@
 package it.eup.loganalyser.model;
 
 public enum DbType {
-	TCP_SERVER, EMBEDDED
+  TCP_SERVER, EMBEDDED
 }
