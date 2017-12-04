@@ -3,21 +3,18 @@ package it.eup.loganalyser.gui;
 import de.felixroske.jfxsupport.FXMLController;
 import it.eup.loganalyser.model.OriginOverviewModel;
 import it.eup.loganalyser.service.DataCleanupService;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.ResourceBundle;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
-import javafx.fxml.Initializable;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TableView;
 import javafx.stage.Stage;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @FXMLController
-public class DatacleanupController implements Initializable {
+public class DatacleanupController {
 
   @FXML
   TableView<OriginOverviewModel> tableView;
@@ -31,7 +28,8 @@ public class DatacleanupController implements Initializable {
 
     dataCleanupService.deleteOrigins(ids);
 
-    updateSelectionListValues();
+    List<OriginOverviewModel> origins = dataCleanupService.findAllOrigins();
+    tableView.setItems(FXCollections.observableList(origins));
   }
 
   private List<Long> extractOriginIds() {
@@ -57,14 +55,15 @@ public class DatacleanupController implements Initializable {
     stage.close();
   }
 
-  @Override
-  public void initialize(URL arg0, ResourceBundle arg1) {
+  @FXML
+  public void initialize() {
     tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-    updateSelectionListValues();
+    refreshSelectionList();
   }
 
-  private void updateSelectionListValues() {
+  public void refreshSelectionList() {
     List<OriginOverviewModel> origins = dataCleanupService.findAllOrigins();
     tableView.setItems(FXCollections.observableList(origins));
   }
+
 }

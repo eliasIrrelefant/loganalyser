@@ -2,19 +2,18 @@ package it.eup.loganalyser;
 
 import de.felixroske.jfxsupport.AbstractJavaFxApplicationSupport;
 import it.eup.loganalyser.gui.MainView;
-import javafx.scene.Parent;
 import javafx.stage.Stage;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 import org.springframework.context.annotation.Bean;
 
 @SpringBootApplication
 public class LogAnalyserApplication extends AbstractJavaFxApplicationSupport {
 
-  private ConfigurableApplicationContext springContext;
-  private Parent root;
+  private Stage rootStage;
 
-  private Stage mainStage;
+  @Autowired private DataSourceProperties dataSourceProperties;
 
   //  @Override public void init() throws Exception {
   //    springContext = SpringApplication.run(LogAnalyserApplication.class);
@@ -30,7 +29,7 @@ public class LogAnalyserApplication extends AbstractJavaFxApplicationSupport {
   //    mainStage = s;
   //
   //    try {
-  //      DbType type = StartupDialogDbModeHelper.showDialog(s);
+
   //
   //      if (type == DbType.TCP_SERVER) {
   //        /*h2DatabaseServerManager.start();
@@ -45,13 +44,21 @@ public class LogAnalyserApplication extends AbstractJavaFxApplicationSupport {
   //    super.start(s);
   // }
 
-  public static void main(String[] args) {
-    launchApp(LogAnalyserApplication.class, MainView.class, args);
+  @Override public void start(Stage stage) throws Exception {
+    this.rootStage = stage;
+    super.start(stage);
   }
 
   @Bean
   public Stage getRootStage() {
-    return mainStage;
+    return rootStage;
   }
 
+  public void setRootStage(Stage rootStage) {
+    this.rootStage = rootStage;
+  }
+
+  public static void main(String[] args) {
+    launchApp(LogAnalyserApplication.class, MainView.class, args);
+  }
 }

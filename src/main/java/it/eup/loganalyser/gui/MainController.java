@@ -3,6 +3,7 @@ package it.eup.loganalyser.gui;
 import de.felixroske.jfxsupport.FXMLController;
 import it.eup.loganalyser.dao.QueryDao;
 import it.eup.loganalyser.entity.LogDataRow;
+import it.eup.loganalyser.events.DatabaseTypeChangeEvent;
 import it.eup.loganalyser.events.ImportDoneEvent;
 import it.eup.loganalyser.events.ImportErrorEvent;
 import it.eup.loganalyser.events.InterruptImportEvent;
@@ -14,6 +15,7 @@ import it.eup.loganalyser.importfilter.StringInputFilter;
 import it.eup.loganalyser.logging.Logger;
 import it.eup.loganalyser.model.ConfigModel;
 import it.eup.loganalyser.model.CredentialsModel;
+import it.eup.loganalyser.model.DbType;
 import it.eup.loganalyser.model.QueryModel;
 import it.eup.loganalyser.service.ConfigService;
 import it.eup.loganalyser.service.H2DatabaseServerManager;
@@ -66,7 +68,6 @@ import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.stage.Window;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
@@ -116,7 +117,7 @@ public class MainController {
   private GridPane filters;
 
   @Autowired
-  private Window rootStage;
+  private Stage rootStage;
 
   @Autowired
   private QueryDao queryDao;
@@ -141,6 +142,12 @@ public class MainController {
 
   @Autowired
   private ApplicationEventPublisher applicationEventPublisher;
+
+  @Autowired
+  private DatabaseCleanupView databaseCleanupView;
+
+  @Autowired
+  private H2WebConsoleLoginHandler h2WebConsoleLoginHandler;
 
   private List<GuiFilterEntry> filterEntries = new ArrayList<GuiFilterEntry>();
 
@@ -311,19 +318,25 @@ public class MainController {
     }
   }
 
+  private Scene cleanupDataScene = null;
+
   @FXML
   protected void cleanupData() {
-    Pane dialog = loadPane("/datacleanup.fxml");
+    Stage cleanupDataStage = new Stage();
+    cleanupDataStage.setTitle("Datenbereinigung: Auswählen");
+    cleanupDataStage.initModality(Modality.WINDOW_MODAL);
+    cleanupDataStage.initOwner(rootStage);
 
-    Stage dialogStage = new Stage();
-    dialogStage.setTitle("Datenbereinigung: Auswählen");
-    dialogStage.initModality(Modality.WINDOW_MODAL);
-    dialogStage.initOwner(rootStage);
+    if (cleanupDataScene == null) {
+      Parent view = databaseCleanupView.getView();
+      cleanupDataScene = new Scene(view);
+    }
 
-    Scene scene = new Scene(dialog);
-    dialogStage.setScene(scene);
+    DatacleanupController controller = (DatacleanupController) databaseCleanupView.getPresenter();
+    controller.refreshSelectionList();
 
-    dialogStage.show();
+    cleanupDataStage.setScene(cleanupDataScene);
+    cleanupDataStage.show();
   }
 
   @FXML
@@ -391,6 +404,9 @@ public class MainController {
 
   @FXML
   public void initialize() throws Exception {
+    DbType type = StartupDialogDbModeHelper.showDialog(rootStage);
+    this.applicationEventPublisher.publishEvent(new DatabaseTypeChangeEvent(type));
+
     logger.log("Startup done\n");
 
     initQueryMenu();
@@ -496,7 +512,7 @@ public class MainController {
 
       WebEngine webEngine = webView.getEngine();
       webEngine.load("http://localhost:10500/");
-      webEngine.documentProperty().addListener(new H2WebConsoleLoginHandler());
+      webEngine.documentProperty().addListener(h2WebConsoleLoginHandler);
     } else {
       webConsoleBox.getChildren().remove(webView);
 
