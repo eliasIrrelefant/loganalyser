@@ -7,13 +7,12 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-import javax.enterprise.context.ApplicationScoped;
-
 import org.apache.commons.lang3.StringUtils;
 
 import it.eup.loganalyser.entity.LogDataRow;
+import org.springframework.stereotype.Component;
 
-@ApplicationScoped
+@Component
 public class ParserHelper {
 
 	private static final int SESSIONID_MAX_LENGTH = 128;

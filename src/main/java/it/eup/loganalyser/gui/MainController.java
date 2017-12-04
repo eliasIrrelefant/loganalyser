@@ -1,30 +1,6 @@
 package it.eup.loganalyser.gui;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.ResourceBundle;
-import java.util.Set;
-import java.util.function.Function;
-
-import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.event.Event;
-import javax.enterprise.event.Observes;
-import javax.enterprise.inject.spi.CDI;
-import javax.inject.Inject;
-
-import org.apache.commons.lang3.StringUtils;
-import org.w3c.dom.Document;
-
-import it.eup.loganalyser.annotations.Initialized;
-import it.eup.loganalyser.cdi.FXMLLoaderFactory;
+import de.felixroske.jfxsupport.FXMLController;
 import it.eup.loganalyser.dao.QueryDao;
 import it.eup.loganalyser.entity.LogDataRow;
 import it.eup.loganalyser.events.ImportDoneEvent;
@@ -41,8 +17,20 @@ import it.eup.loganalyser.model.CredentialsModel;
 import it.eup.loganalyser.model.QueryModel;
 import it.eup.loganalyser.service.ConfigService;
 import it.eup.loganalyser.service.H2DatabaseServerManager;
-import it.eup.loganalyser.service.ImportService;
 import it.eup.loganalyser.service.TemplateService;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.ResourceBundle;
+import java.util.Set;
+import java.util.function.Function;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -79,512 +67,505 @@ import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.Window;
-import javafx.util.Callback;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
+import org.w3c.dom.Document;
 
-@ApplicationScoped
+@FXMLController
 public class MainController {
 
-    @FXML
-    TextArea urls;
+  @FXML
+  TextArea urls;
 
-    @FXML
-    TextField username;
+  @FXML
+  TextField username;
 
-    @FXML
-    TextField password;
+  @FXML
+  TextField password;
 
-    @FXML
-    TextArea textArea;
+  @FXML
+  TextArea textArea;
 
-    @FXML
-    TableView<ObservableMap<String, Object>> queryResultTable;
+  @FXML
+  TableView<ObservableMap<String, Object>> queryResultTable;
 
-    @FXML
-    private TextArea log;
+  @FXML
+  private TextArea log;
 
-    @FXML
-    private TextArea query;
+  @FXML
+  private TextArea query;
 
-    @FXML
-    private BorderPane rootPane;
+  @FXML
+  private BorderPane rootPane;
 
-    @FXML
-    WebView webView;
+  @FXML
+  WebView webView;
 
-    @FXML
-    VBox logBox;
+  @FXML
+  VBox logBox;
 
-    @FXML
-    VBox webConsoleBox;
+  @FXML
+  VBox webConsoleBox;
 
-    @FXML
-    Menu queriesMenu;
+  @FXML
+  private Menu queriesMenu;
 
-    @FXML
-    GridPane filters;
+  @FXML
+  private GridPane filters;
 
-    @Inject
-    private Window rootStage;
+  @Autowired
+  private Window rootStage;
 
-    @Inject
-    private QueryDao queryDao;
+  @Autowired
+  private QueryDao queryDao;
 
-    @Inject
-    ImportAsyncRunner importAsyncRunner;
+  @Autowired
+  private ImportAsyncRunner importAsyncRunner;
 
-    @Inject
-    ImportService importService;
+  @Autowired
+  private CredentialsModel credentialsModel;
 
-    @Inject
-    FXMLLoaderFactory fxmlLoaderFactory;
+  @Autowired
+  private H2DatabaseServerManager h2DatabaseServerManager;
 
-    @Inject
-    CredentialsModel credentialsModel;
+  @Autowired
+  private ConfigService configService;
 
-    @Inject
-    Event<LoggingEvent> logEvent;
+  @Autowired
+  private TemplateService templateService;
 
-    @Inject
-    H2DatabaseServerManager h2DatabaseServerManager;
+  @Autowired
+  private Logger logger;
 
-    @Inject
-    ConfigService configService;
+  @Autowired
+  private ApplicationEventPublisher applicationEventPublisher;
 
-    @Inject
-    Event<InterruptImportEvent> interruptEvent;
+  private List<GuiFilterEntry> filterEntries = new ArrayList<GuiFilterEntry>();
 
-    @Inject
-    TemplateService templateService;
+  @FXML
+  protected void executeQuery() {
+    try {
+      String queryText = query.getText();
+      List<Map<String, Object>> data = null;
 
-    List<GuiFilterEntry> filterEntries = new ArrayList<GuiFilterEntry>();
+      if (StringUtils.isNotBlank(queryText)) {
+        data = queryDao.query(queryText);
+      }
 
-    @FXML
-    protected void executeQuery() {
-        try {
-            String queryText = query.getText();
-            List<Map<String, Object>> data = null;
+      updateTable(data);
+    } catch (Exception e) {
+      new DialogBuilder().createExceptionDialog("Fehler", "Es ist ein Fehler aufgetreten", e).build().showAndWait();
+    }
+  }
 
-            if (StringUtils.isNotBlank(queryText)) {
-                data = queryDao.query(queryText);
-            }
-
-            updateTable(data);
-        } catch (Exception e) {
-            new DialogBuilder().createExceptionDialog("Fehler", "Es ist ein Fehler aufgetreten", e).build().showAndWait();
-        }
+  private void updateTable(List<Map<String, Object>> data) {
+    if (data == null || data.isEmpty()) {
+      queryResultTable.getColumns().clear();
+      queryResultTable.setItems(null);
+      return;
     }
 
-    private void updateTable(List<Map<String, Object>> data) {
-        if (data == null || data.isEmpty()) {
-            queryResultTable.getColumns().clear();
-            queryResultTable.setItems(null);
-            return;
-        }
+    ObservableList<ObservableMap<String, Object>> list = FXCollections.observableArrayList();
 
-        ObservableList<ObservableMap<String, Object>> list = FXCollections.observableArrayList();
-
-        for (Map<String, Object> map : data) {
-            ObservableMap<String, Object> row = FXCollections.observableMap(map);
-            list.add(row);
-        }
-
-        double width = queryResultTable.getWidth();
-        double prefAverageWidth = (width - 18) / data.get(0).size();
-
-        ObservableList<TableColumn<ObservableMap<String, Object>, ?>> tableColumns = queryResultTable.getColumns();
-        tableColumns.clear();
-        for (String key : data.get(0).keySet()) {
-            TableColumn<ObservableMap<String, Object>, ?> column = new TableColumn<ObservableMap<String, Object>, Object>(key);
-            MapValueFactory mapValueFactory = new MapValueFactory<CellDataFeatures<ObservableMap<String, Object>, ?>>(key);
-            column.setCellValueFactory(mapValueFactory);
-            column.setMinWidth(20);
-            column.setPrefWidth(prefAverageWidth);
-            tableColumns.add(column);
-        }
-
-        queryResultTable.setItems(list);
+    for (Map<String, Object> map : data) {
+      ObservableMap<String, Object> row = FXCollections.observableMap(map);
+      list.add(row);
     }
 
-    @FXML
-    protected void startImport(ActionEvent event) {
-        String urlString = urls.getText();
+    double width = queryResultTable.getWidth();
+    double prefAverageWidth = (width - 18) / data.get(0).size();
 
-        String urlStringExpanded = templateService.merge(urlString);
-
-        if (StringUtils.equals(urlString, urlStringExpanded) == false) {
-            urlString = urlStringExpanded;
-            Logger.log("URL Template wurde ausgewertet zu:\n{0}", urlStringExpanded);
-        }
-
-        if (StringUtils.isBlank(urlString)) {
-            new DialogBuilder().createDefaultDialog("Fehler", "Es ist kein Pfad für den Import ausgewählt").build().showAndWait();
-            return;
-        }
-
-        String lines[] = urlString.split("\\r?\\n");
-
-        doImport(lines);
+    ObservableList<TableColumn<ObservableMap<String, Object>, ?>> tableColumns = queryResultTable.getColumns();
+    tableColumns.clear();
+    for (String key : data.get(0).keySet()) {
+      TableColumn<ObservableMap<String, Object>, ?> column = new TableColumn<ObservableMap<String, Object>, Object>(key);
+      MapValueFactory mapValueFactory = new MapValueFactory<CellDataFeatures<ObservableMap<String, Object>, ?>>(key);
+      column.setCellValueFactory(mapValueFactory);
+      column.setMinWidth(20);
+      column.setPrefWidth(prefAverageWidth);
+      tableColumns.add(column);
     }
 
-    @FXML
-    protected void resetUrls() {
+    queryResultTable.setItems(list);
+  }
+
+  @FXML
+  protected void startImport(ActionEvent event) {
+    String urlString = urls.getText();
+
+    String urlStringExpanded = templateService.merge(urlString);
+
+    if (StringUtils.equals(urlString, urlStringExpanded) == false) {
+      urlString = urlStringExpanded;
+      logger.log("URL Template wurde ausgewertet zu:\n{0}", urlStringExpanded);
+    }
+
+    if (StringUtils.isBlank(urlString)) {
+      new DialogBuilder().createDefaultDialog("Fehler", "Es ist kein Pfad für den Import ausgewählt").build().showAndWait();
+      return;
+    }
+
+    String lines[] = urlString.split("\\r?\\n");
+
+    doImport(lines);
+  }
+
+  @FXML
+  protected void resetUrls() {
+    urls.clear();
+  }
+
+  @FXML
+  protected void truncateDatabase() {
+    Alert dialog = new DialogBuilder()
+        .createDefaultYesNoDialog("Sicher", "Wollen Sie wirklich sämtliche Daten in der Datenbank löschen?").build();
+
+    Optional<ButtonType> result = dialog.showAndWait();
+
+    if (result.get() == ButtonType.YES) {
+      queryDao.wipeDatabase();
+    }
+  }
+
+  protected void doImport(String... urls) {
+    try {
+      Filterable filter = buildFilter();
+      importAsyncRunner.doImport(filter, urls);
+    } catch (Exception e) {
+      logger.log(e.getLocalizedMessage(), e);
+      new DialogBuilder().createDefaultDialog("Fehler", e.getLocalizedMessage()).build().showAndWait();
+    }
+  }
+
+  private Filterable buildFilter() {
+    ChainableFilter filterChain = new ChainableFilter();
+
+    for (GuiFilterEntry filterEntry : filterEntries) {
+      if (filterEntry.isFilterEnabled()) {
+        Filterable filter = filterEntry.getFilter();
+        filterChain.add(filter);
+      }
+    }
+
+    return filterChain;
+  }
+
+  @FXML
+  protected void chooseFile(ActionEvent event) {
+    FileChooser fileChooser = new FileChooser();
+    List<File> files = fileChooser.showOpenMultipleDialog(rootPane.getScene().getWindow());
+
+    Set<String> strings = new LinkedHashSet<String>();
+    strings.addAll(Arrays.asList(StringUtils.split(urls.getText(), "\r\n")));
+
+    if (files != null) {
+      List<String> joinFilenames = joinFilenames(files);
+      strings.addAll(joinFilenames);
+    }
+
+    urls.setText(StringUtils.join(strings, "\n"));
+  }
+
+  private List<String> joinFilenames(List<File> files) {
+    if (files == null) {
+      return Collections.emptyList();
+    }
+
+    List<String> result = new ArrayList<String>();
+    for (File f : files) {
+      result.add(f.getAbsolutePath());
+    }
+
+    return result;
+  }
+
+  @FXML
+  protected void clearLog() {
+    log.clear();
+  }
+
+  @FXML
+  protected void querySelected(ActionEvent event) {
+    if (event.getSource() instanceof MenuItem) {
+      MenuItem item = (MenuItem) event.getSource();
+
+      String queryString = getQueryString(item);
+
+      query.setText(queryString);
+
+      if (h2DatabaseServerManager.isWebServerStarted()) {
+        WebEngine webEngine = webView.getEngine();
+        Document queryDocument = (Document) webEngine.executeScript("window.frames['h2query'].document");
+        WebViewUtils.updateTextAreaValueById(queryDocument, "sql", queryString);
+      }
+    }
+  }
+
+  private String getQueryString(MenuItem item) {
+    if (item.getUserData() != null) {
+      return item.getUserData().toString();
+    } else {
+      return item.getText();
+    }
+  }
+
+  @FXML
+  protected void cleanupData() {
+    Pane dialog = loadPane("/datacleanup.fxml");
+
+    Stage dialogStage = new Stage();
+    dialogStage.setTitle("Datenbereinigung: Auswählen");
+    dialogStage.initModality(Modality.WINDOW_MODAL);
+    dialogStage.initOwner(rootStage);
+
+    Scene scene = new Scene(dialog);
+    dialogStage.setScene(scene);
+
+    dialogStage.show();
+  }
+
+  @FXML
+  protected void showSettingsDialog() {
+    Pane dialog = loadPane("/settings.fxml");
+
+    Stage dialogStage = new Stage();
+    dialogStage.setTitle("Datenbereinigung: Auswählen");
+    dialogStage.initModality(Modality.WINDOW_MODAL);
+    dialogStage.initOwner(rootStage);
+
+    Scene scene = new Scene(dialog);
+    dialogStage.setScene(scene);
+
+    dialogStage.show();
+  }
+
+  private Pane loadPane(String path) {
+    try {
+      InputStream inputStream = getClass().getResourceAsStream(path);
+      FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource(path));
+      return (Pane) fxmlLoader.load(inputStream);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @FXML
+  protected void exit() {
+    Platform.exit();
+  }
+
+  @FXML
+  protected void createIndex() {
+    queryDao.createIndex();
+  }
+
+  @FXML
+  protected void dropIndex() {
+    queryDao.dropIndex();
+  }
+
+  @EventListener
+  public void handleLogEvent(LoggingEvent event) {
+    Platform.runLater(() -> {
+      log.appendText(event.getMessage() + "\n");
+    });
+  }
+
+  @EventListener
+  public void handleImportDoneEvent(ImportDoneEvent importDoneEvent) {
+    logger.log("Import der Datei {0} abgeschlossen.", importDoneEvent.getFilename());
+
+    if (StringUtils.equals(importDoneEvent.getFilename(), urls.getText())) {
+      Platform.runLater(() -> {
         urls.clear();
+      });
     }
+  }
 
-    @FXML
-    protected void truncateDatabase() {
-        Alert dialog = new DialogBuilder()
-                .createDefaultYesNoDialog("Sicher", "Wollen Sie wirklich sämtliche Daten in der Datenbank löschen?").build();
+  @EventListener
+  public void handleImportErrorEvent(ImportErrorEvent errorEvent) {
+    logger.log("Fehler beim Import der Datei {0}", errorEvent.getFilename(), errorEvent.getThrowable());
+  }
 
-        Optional<ButtonType> result = dialog.showAndWait();
+  @FXML
+  public void initialize() throws Exception {
+    logger.log("Startup done\n");
 
-        if (result.get() == ButtonType.YES) {
-            queryDao.wipeDatabase();
+    initQueryMenu();
+
+    username.textProperty().bindBidirectional(credentialsModel.getUsername());
+    password.textProperty().bindBidirectional(credentialsModel.getPassword());
+
+    initWebView();
+
+    setupFilterGrid();
+
+    initFilters();
+  }
+
+  private void setupFilterGrid() {
+    filters.setHgap(5);
+    filters.setVgap(5);
+
+    for (int i = 0; i < 12; ++i) {
+      ColumnConstraints constraints = new ColumnConstraints();
+      constraints.setPercentWidth(100.0 / 12);
+      filters.getColumnConstraints().add(constraints);
+    }
+  }
+
+  private void initFilters() {
+    addStringFilter("IP-Adresse", FilterOptions.ALL_STRING_FILTER_OPTIONS, new StringInputFilter(x -> x.getIp()));
+    addStringFilter("Pfad", FilterOptions.ALL_STRING_FILTER_OPTIONS, new StringInputFilter(x -> x.getPath()));
+    addStringFilter("Query-String", FilterOptions.ALL_STRING_FILTER_OPTIONS, new StringInputFilter(x -> x.getQueryString()));
+    addStringFilter("HTTP-Methode", FilterOptions.ALL_STRING_FILTER_OPTIONS, new StringInputFilter(x -> x.getMethod()));
+    addStringFilter("User-Agent", FilterOptions.ALL_STRING_FILTER_OPTIONS, new StringInputFilter(x -> x.getUserAgent()));
+    addStringFilter("Cipher Name", FilterOptions.ALL_STRING_FILTER_OPTIONS, new StringInputFilter(x -> x.getCipherName()));
+    addBooleanFilter("SSL Frontend", x -> x.getSslFrontend());
+    addLambdaStringFilter("Advanced Filter");
+
+    addFiltersToGrid();
+  }
+
+  private void addLambdaStringFilter(String label) {
+    GuiFilterEntry entry = new LambdaStringGuiFilterEntry(label);
+    filterEntries.add(entry);
+  }
+
+  private void addStringFilter(String label, List<String> choices, InputFilterFactory<String> filterFactory) {
+    GuiFilterEntry filterEntry = new StringGuiFilterEntry(label, choices, filterFactory);
+    filterEntries.add(filterEntry);
+  }
+
+  private void addBooleanFilter(String label, Function<LogDataRow, Boolean> valueAccessor) {
+    GuiFilterEntry filterEntry = new BooleanGuiFilterEntry(label, valueAccessor);
+    filterEntries.add(filterEntry);
+  }
+
+  private void addFiltersToGrid() {
+    for (int i = 0; i < filterEntries.size(); ++i) {
+      GuiFilterEntry filter = filterEntries.get(i);
+
+      filter.addToGrid(filters, i);
+    }
+  }
+
+
+  private void initQueryMenu() {
+    ConfigModel defaultEntries = configService.getDefaultEntries();
+
+    if (defaultEntries != null) {
+      List<QueryModel> queries = defaultEntries.getQueries();
+      updateQueryMenu(queries);
+    }
+  }
+
+  private void updateQueryMenu(List<QueryModel> queryModels) {
+    ObservableList<MenuItem> items = queriesMenu.getItems();
+    items.clear();
+
+    for (QueryModel model : queryModels) {
+      MenuItem item = new MenuItem();
+
+      Label label = new Label(model.getName());
+      label.setTextFill(Color.BLACK);
+
+      String tooltipText = StringUtils.defaultIfBlank(model.getDescription(), "Keine Beschreibung hinterlegt.");
+      label.setTooltip(new Tooltip(tooltipText));
+
+      item.setUserData(model.getQuery());
+      item.setGraphic(label);
+
+      item.setOnAction(new EventHandler<ActionEvent>() {
+
+        @Override
+        public void handle(ActionEvent arg0) {
+          querySelected(arg0);
         }
+      });
+
+      items.add(item);
+    }
+  }
+
+  private void initWebView() {
+    if (h2DatabaseServerManager.isWebServerStarted()) {
+      webView.setContextMenuEnabled(false);
+
+      WebEngine webEngine = webView.getEngine();
+      webEngine.load("http://localhost:10500/");
+      webEngine.documentProperty().addListener(new H2WebConsoleLoginHandler());
+    } else {
+      webConsoleBox.getChildren().remove(webView);
+
+      Label label = new Label("Die H2-WebConsole steht im Embedded-Mode nicht zur Verfügung.");
+      webConsoleBox.setAlignment(Pos.CENTER);
+      webConsoleBox.getChildren().add(label);
+    }
+  }
+
+  private void loadFxmlAndShowScene(Stage stage) throws IOException {
+    FXMLLoader fxmll = new FXMLLoader(getClass().getResource("/gui.fxml"), null);
+
+    fxmll.setController(this);
+
+    Parent root = (Parent) fxmll.load();
+    Scene scene = new Scene(root);
+
+    stage.setTitle(buildAppTitle());
+    stage.setScene(scene);
+    stage.setWidth(960);
+    stage.show();
+  }
+
+  private String buildAppTitle() {
+    StringBuilder builder = new StringBuilder("LogAnalyser");
+
+    builder.append(" ").append(getFromVersionBundleWithFallback("app.version", "Unbekannte-Version"));
+
+    builder.append(" (Build: ");
+    builder.append(getFromVersionBundleWithFallback("build.date", "unbekannter Build"));
+    builder.append(")");
+
+    return builder.toString();
+  }
+
+  private String getFromVersionBundleWithFallback(String key, String defaultValue) {
+    ResourceBundle bundle = ResourceBundle.getBundle("version");
+
+    try {
+      return bundle.getString(key);
+    } catch (Exception e) {
+      return defaultValue;
+    }
+  }
+
+  @FXML
+  protected void tabChanged(javafx.event.Event e) {
+    if (log == null) {
+      return;
     }
 
-    protected void doImport(String... urls) {
-        try {
-            Filterable filter = buildFilter();
-            importAsyncRunner.doImport(filter, urls);
-        } catch (Exception e) {
-            Logger.log(e.getLocalizedMessage(), e);
-            new DialogBuilder().createDefaultDialog("Fehler", e.getLocalizedMessage()).build().showAndWait();
-        }
+    Tab source = (Tab) e.getSource();
+
+    if (source == null) {
+      return;
     }
 
-    private Filterable buildFilter() {
-        ChainableFilter filterChain = new ChainableFilter();
+    String text = source.getText();
 
-        for (GuiFilterEntry filterEntry : filterEntries) {
-            if (filterEntry.isFilterEnabled()) {
-                Filterable filter = filterEntry.getFilter();
-                filterChain.add(filter);
-            }
-        }
-
-        return filterChain;
+    if (StringUtils.equals("H2-Webconsole", text)) {
+      rootPane.setBottom(null);
+    } else {
+      rootPane.setBottom(logBox);
     }
-
-    @FXML
-    protected void chooseFile(ActionEvent event) {
-        FileChooser fileChooser = new FileChooser();
-        List<File> files = fileChooser.showOpenMultipleDialog(rootPane.getScene().getWindow());
-
-        Set<String> strings = new LinkedHashSet<String>();
-        strings.addAll(Arrays.asList(StringUtils.split(urls.getText(), "\r\n")));
-
-        if (files != null) {
-            List<String> joinFilenames = joinFilenames(files);
-            strings.addAll(joinFilenames);
-        }
-
-        urls.setText(StringUtils.join(strings, "\n"));
-    }
-
-    private List<String> joinFilenames(List<File> files) {
-        if (files == null) {
-            return Collections.emptyList();
-        }
-
-        List<String> result = new ArrayList<String>();
-        for (File f : files) {
-            result.add(f.getAbsolutePath());
-        }
-
-        return result;
-    }
-
-    @FXML
-    protected void clearLog() {
-        log.clear();
-    }
-
-    @FXML
-    protected void querySelected(ActionEvent event) {
-        if (event.getSource() instanceof MenuItem) {
-            MenuItem item = (MenuItem) event.getSource();
-
-            String queryString = getQueryString(item);
-
-            query.setText(queryString);
-
-            if (h2DatabaseServerManager.isWebServerStarted()) {
-                WebEngine webEngine = webView.getEngine();
-                Document queryDocument = (Document) webEngine.executeScript("window.frames['h2query'].document");
-                WebViewUtils.updateTextAreaValueById(queryDocument, "sql", queryString);
-            }
-        }
-    }
-
-    private String getQueryString(MenuItem item) {
-        if (item.getUserData() != null) {
-            return item.getUserData().toString();
-        } else {
-            return item.getText();
-        }
-    }
-
-    @FXML
-    protected void cleanupData() {
-        Pane dialog = loadPane("/datacleanup.fxml");
-
-        Stage dialogStage = new Stage();
-        dialogStage.setTitle("Datenbereinigung: Auswählen");
-        dialogStage.initModality(Modality.WINDOW_MODAL);
-        dialogStage.initOwner(rootStage);
-
-        Scene scene = new Scene(dialog);
-        dialogStage.setScene(scene);
-
-        dialogStage.show();
-    }
-
-    @FXML
-    protected void showSettingsDialog() {
-        Pane dialog = loadPane("/settings.fxml");
-
-        Stage dialogStage = new Stage();
-        dialogStage.setTitle("Datenbereinigung: Auswählen");
-        dialogStage.initModality(Modality.WINDOW_MODAL);
-        dialogStage.initOwner(rootStage);
-
-        Scene scene = new Scene(dialog);
-        dialogStage.setScene(scene);
-
-        dialogStage.show();
-    }
-    
-    private Pane loadPane(String path) {
-        try {
-            InputStream inputStream = getClass().getResourceAsStream(path);
-            FXMLLoader fxmlLoader = fxmlLoaderFactory.createLoader();
-            return (Pane) fxmlLoader.load(inputStream);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @FXML
-    protected void exit() {
-        Platform.exit();
-    }
-
-    @FXML
-    protected void createIndex() {
-        queryDao.createIndex();
-    }
-
-    @FXML
-    protected void dropIndex() {
-        queryDao.dropIndex();
-    }
-
-    public void handleLogEvent(@Observes LoggingEvent event) {
-        Platform.runLater(() -> {
-            log.appendText(event.getMessage() + "\n");
-        });
-    }
-
-    public void handleImportDoneEvent(@Observes ImportDoneEvent importDoneEvent) {
-        Logger.log("Import der Datei {0} abgeschlossen.", importDoneEvent.getFilename());
-
-        if (StringUtils.equals(importDoneEvent.getFilename(), urls.getText())) {
-            Platform.runLater(() -> {
-                urls.clear();
-            });
-        }
-    }
-
-    public void handleImportErrorEvent(@Observes ImportErrorEvent errorEvent) {
-        Logger.log("Fehler beim Import der Datei {0}", errorEvent.getFilename(), errorEvent.getThrowable());
-    }
-
-    public void initialized(@Observes @Initialized Stage stage) throws Exception {
-        loadFxmlAndShowScene(stage);
-
-        Logger.log("Startup done\n");
-
-        initQueryMenu();
-
-        username.textProperty().bindBidirectional(credentialsModel.getUsername());
-        password.textProperty().bindBidirectional(credentialsModel.getPassword());
-
-        initWebView();
-        
-        setupFilterGrid();
-
-        initFilters();
-    }
-
-    private void setupFilterGrid() {
-        filters.setHgap(5);
-        filters.setVgap(5);
-        
-        for (int i = 0; i < 12; ++i) {
-            ColumnConstraints constraints = new ColumnConstraints();
-            constraints.setPercentWidth(100.0/12);
-            filters.getColumnConstraints().add(constraints);
-        }
-    }
-
-    private void initFilters() {
-        addStringFilter("IP-Adresse", FilterOptions.ALL_STRING_FILTER_OPTIONS, new StringInputFilter(x -> x.getIp()));
-        addStringFilter("Pfad", FilterOptions.ALL_STRING_FILTER_OPTIONS, new StringInputFilter(x -> x.getPath()));
-        addStringFilter("Query-String", FilterOptions.ALL_STRING_FILTER_OPTIONS, new StringInputFilter(x -> x.getQueryString()));
-        addStringFilter("HTTP-Methode", FilterOptions.ALL_STRING_FILTER_OPTIONS, new StringInputFilter(x -> x.getMethod()));
-        addStringFilter("User-Agent", FilterOptions.ALL_STRING_FILTER_OPTIONS, new StringInputFilter(x -> x.getUserAgent()));
-        addStringFilter("Cipher Name", FilterOptions.ALL_STRING_FILTER_OPTIONS, new StringInputFilter(x -> x.getCipherName()));
-        addBooleanFilter("SSL Frontend", x -> x.getSslFrontend());
-        addLambdaStringFilter("Advanced Filter");
-        
-        addFiltersToGrid();
-    }
-
-    private void addLambdaStringFilter(String label) {
-        GuiFilterEntry entry = new LambdaStringGuiFilterEntry(label);
-        filterEntries.add(entry);
-    }
-
-    private void addStringFilter(String label, List<String> choices, InputFilterFactory<String> filterFactory) {
-        GuiFilterEntry filterEntry = new StringGuiFilterEntry(label, choices, filterFactory);
-        filterEntries.add(filterEntry);
-    }
-
-    private void addBooleanFilter(String label, Function<LogDataRow, Boolean> valueAccessor) {
-        GuiFilterEntry filterEntry = new BooleanGuiFilterEntry(label, valueAccessor);
-        filterEntries.add(filterEntry);
-    }
-    
-    private void addFiltersToGrid() {
-        for (int i = 0; i < filterEntries.size(); ++i) {
-            GuiFilterEntry filter = filterEntries.get(i);
-
-            filter.addToGrid(filters, i);
-        }
-    }
-
-
-    private void initQueryMenu() {
-        ConfigModel defaultEntries = configService.getDefaultEntries();
-        
-        if (defaultEntries != null) {
-            List<QueryModel> queries = defaultEntries.getQueries();
-            updateQueryMenu(queries);
-        }
-    }
-
-    private void updateQueryMenu(List<QueryModel> queryModels) {
-        ObservableList<MenuItem> items = queriesMenu.getItems();
-        items.clear();
-
-        for (QueryModel model : queryModels) {
-            MenuItem item = new MenuItem();
-
-            Label label = new Label(model.getName());
-            label.setTextFill(Color.BLACK);
-
-            String tooltipText = StringUtils.defaultIfBlank(model.getDescription(), "Keine Beschreibung hinterlegt.");
-            label.setTooltip(new Tooltip(tooltipText));
-
-            item.setUserData(model.getQuery());
-            item.setGraphic(label);
-
-            item.setOnAction(new EventHandler<ActionEvent>() {
-
-                @Override
-                public void handle(ActionEvent arg0) {
-                    querySelected(arg0);
-                }
-            });
-
-            items.add(item);
-        }
-    }
-
-    private void initWebView() {
-        if (h2DatabaseServerManager.isWebServerStarted()) {
-            webView.setContextMenuEnabled(false);
-
-            WebEngine webEngine = webView.getEngine();
-            webEngine.load("http://localhost:10500/");
-            webEngine.documentProperty().addListener(new H2WebConsoleLoginHandler());
-        } else {
-            webConsoleBox.getChildren().remove(webView);
-
-            Label label = new Label("Die H2-WebConsole steht im Embedded-Mode nicht zur Verfügung.");
-            webConsoleBox.setAlignment(Pos.CENTER);
-            webConsoleBox.getChildren().add(label);
-        }
-    }
-
-    private void loadFxmlAndShowScene(Stage stage) throws IOException {
-        FXMLLoader fxmll = new FXMLLoader(getClass().getResource("/gui.fxml"), null);
-
-        fxmll.setController(this);
-
-        fxmll.setControllerFactory(new Callback<Class<?>, Object>() {
-            @Override
-            public Object call(Class<?> param) {
-                return CDI.current().select(param).get();
-            }
-        });
-
-        Parent root = (Parent) fxmll.load();
-        Scene scene = new Scene(root);
-
-        stage.setTitle(buildAppTitle());
-        stage.setScene(scene);
-        stage.setWidth(960);
-        stage.show();
-    }
-
-    private String buildAppTitle() {
-        StringBuilder builder = new StringBuilder("LogAnalyser");
-
-        builder.append(" ").append(getFromVersionBundleWithFallback("app.version", "Unbekannte-Version"));
-
-        builder.append(" (Build: ");
-        builder.append(getFromVersionBundleWithFallback("build.date", "unbekannter Build"));
-        builder.append(")");
-
-        return builder.toString();
-    }
-
-    private String getFromVersionBundleWithFallback(String key, String defaultValue) {
-        ResourceBundle bundle = ResourceBundle.getBundle("version");
-
-        try {
-            return bundle.getString(key);
-        } catch (Exception e) {
-            return defaultValue;
-        }
-    }
-
-    @FXML
-    protected void tabChanged(javafx.event.Event e) {
-        if (log == null) {
-            return;
-        }
-
-        Tab source = (Tab) e.getSource();
-
-        if (source == null) {
-            return;
-        }
-
-        String text = source.getText();
-
-        if (StringUtils.equals("H2-Webconsole", text)) {
-            rootPane.setBottom(null);
-        } else {
-            rootPane.setBottom(logBox);
-        }
-    }
-
-    @FXML
-    protected void interruptImport() {
-        interruptEvent.fire(new InterruptImportEvent());
-    }
+  }
+
+  @FXML
+  protected void interruptImport() {
+    applicationEventPublisher.publishEvent(new InterruptImportEvent());
+  }
 
 }

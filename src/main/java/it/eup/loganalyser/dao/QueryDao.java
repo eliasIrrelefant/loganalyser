@@ -1,29 +1,29 @@
 package it.eup.loganalyser.dao;
 
+import it.eup.loganalyser.logging.Logger;
 import java.sql.Connection;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-
-import javax.enterprise.context.ApplicationScoped;
-import javax.inject.Inject;
 import javax.persistence.EntityManager;
 import javax.sql.DataSource;
-
 import org.hibernate.internal.SessionImpl;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.ColumnMapRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
+import org.springframework.stereotype.Component;
 
-import it.eup.loganalyser.logging.Logger;
-
-@ApplicationScoped
+@Component
 public class QueryDao {
 
 	List<String> indexColumns = Arrays.asList("PATH", "STATUSCODE", "RESPONSETIME", "REQUESTDATE", "QUERYSTRING");
 
-	@Inject
+	@Autowired
 	EntityManager entityManager;
+
+	@Autowired
+	private Logger logger;
 
 	public void execute(String queryString) {
 		JdbcTemplate template = getJdbcTemplate();
@@ -32,7 +32,7 @@ public class QueryDao {
 		template.execute(queryString);
 		long duration = System.currentTimeMillis() - time;
 
-		Logger.log("SQL: {0} ({1}ms)", queryString, duration);
+		logger.log("SQL: {0} ({1}ms)", queryString, duration);
 	}
 
 	public List<Map<String, Object>> query(String queryString) {

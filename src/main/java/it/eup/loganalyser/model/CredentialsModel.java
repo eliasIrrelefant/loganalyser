@@ -1,28 +1,14 @@
 package it.eup.loganalyser.model;
 
-import javax.enterprise.context.ApplicationScoped;
-
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import lombok.Data;
+import org.springframework.stereotype.Component;
 
-@ApplicationScoped
+@Data
+@Component
 public class CredentialsModel {
-	private StringProperty username = new SimpleStringProperty();
-	private StringProperty password = new SimpleStringProperty();
+  private StringProperty username = new SimpleStringProperty();
+  private StringProperty password = new SimpleStringProperty();
 
-	public StringProperty getPassword() {
-		return password;
-	}
-
-	public StringProperty getUsername() {
-		return username;
-	}
-
-	public void setPassword(StringProperty password) {
-		this.password = password;
-	}
-
-	public void setUsername(StringProperty username) {
-		this.username = username;
-	}
 }

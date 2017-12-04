@@ -5,9 +5,9 @@ import javafx.scene.layout.GridPane;
 
 public interface GuiFilterEntry {
 
-	void addToGrid(GridPane gridPane, int row);
+  void addToGrid(GridPane gridPane, int row);
 
-	Filterable getFilter();
+  Filterable getFilter();
 
-	 boolean isFilterEnabled();
+  boolean isFilterEnabled();
 }

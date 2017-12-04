@@ -9,6 +9,15 @@ import javax.persistence.Id;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 
 @Entity
 @Table(name = "origin")
@@ -37,59 +46,4 @@ public class LogOrigin {
     @Column(name = "filtered_count")
     private Long filteredCount;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Date getImportDate() {
-        return importDate;
-    }
-
-    public void setImportDate(Date imported) {
-        this.importDate = imported;
-    }
-
-    public String getPath() {
-        return path;
-    }
-
-    public void setPath(String path) {
-        this.path = path;
-    }
-
-    public Long getErrorsCount() {
-        return errorsCount;
-    }
-    
-    public Long getFilteredCount() {
-        return filteredCount;
-    }
-    
-    public Long getSuccessCount() {
-        return successCount;
-    }
-    
-    public Long getTotalCount() {
-        return totalCount;
-    }
-    
-    public void setErrorsCount(Long errors) {
-        this.errorsCount = errors;
-    }
-    
-    public void setFilteredCount(Long filtered) {
-        this.filteredCount = filtered;
-    }
-    
-    public void setSuccessCount(Long success) {
-        this.successCount = success;
-    }
-    
-    public void setTotalCount(Long total) {
-        this.totalCount = total;
-    }
 }

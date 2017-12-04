@@ -1,18 +1,5 @@
 package it.eup.loganalyser.reader;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-
-import javax.enterprise.context.Dependent;
-import javax.enterprise.event.Event;
-import javax.inject.Inject;
-import javax.persistence.EntityManager;
-import javax.persistence.FlushModeType;
-
-import org.apache.commons.io.IOUtils;
-
 import it.eup.loganalyser.entity.LogDataRow;
 import it.eup.loganalyser.entity.LogOrigin;
 import it.eup.loganalyser.events.ImportDoneEvent;
@@ -24,149 +11,149 @@ import it.eup.loganalyser.logparser.HttpdLogParser;
 import it.eup.loganalyser.model.ConfigModel;
 import it.eup.loganalyser.model.StatisticsData;
 import it.eup.loganalyser.service.ConfigService;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import javax.persistence.EntityManager;
+import javax.transaction.Transactional;
+import org.apache.commons.io.IOUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
 
-@Dependent
+@Service
+@Transactional
 public class LogFileImporter {
 
-    @Inject
-    private ConfigService configService;
-    
-	@Inject
-	private EntityManager entityManager;
+  @Autowired
+  private ConfigService configService;
 
-	@Inject
-	Event<ImportDoneEvent> importDoneEvent;
+  @Autowired
+  private EntityManager entityManager;
 
-	@Inject
-	Event<ImportErrorEvent> importErrorEvent;
+  @Autowired
+  ApplicationEventPublisher importDoneEvent;
 
-	boolean interrupted = false;
+  @Autowired
+  ApplicationEventPublisher importErrorEvent;
 
-	public StatisticsData process(final InputStream inputStream, final String origin, Filterable filter) throws IOException {
-		try {
-			StatisticsData statistics = processInternal(inputStream, origin, filter);
-			importDoneEvent.fire(ImportDoneEvent.createNew(origin));
-			return statistics;
-		} catch (ImportInterruptedException e) {
-			throw e;
-		} catch (Exception e) {
-			importErrorEvent.fire(ImportErrorEvent.createNew(origin, e));
-			return null;
-		}
-	}
+  @Autowired
+  private Logger logger;
 
-	private StatisticsData processInternal(InputStream inputStream, String origin, Filterable filter) throws IOException {
-	    ConfigModel defaultEntries = configService.getDefaultEntries();
-        String logFormat = defaultEntries.getLogformat();
-	    
-        HttpdLogParser httpdLogParser = new HttpdLogParser(logFormat);
-        
-		interrupted = false;
+  boolean interrupted = false;
 
-		BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+  public StatisticsData process(final InputStream inputStream, final String origin, Filterable filter) throws IOException {
+    try {
+      StatisticsData statistics = processInternal(inputStream, origin, filter);
+      importDoneEvent.publishEvent(ImportDoneEvent.createNew(origin));
+      return statistics;
+    } catch (ImportInterruptedException e) {
+      throw e;
+    } catch (Exception e) {
+      importErrorEvent.publishEvent(ImportErrorEvent.createNew(origin, e));
+      return null;
+    }
+  }
 
-		if (entityManager.getTransaction().isActive()) {
-			entityManager.getTransaction().rollback();
-		}
+  private StatisticsData processInternal(InputStream inputStream, String origin, Filterable filter) throws IOException {
+    ConfigModel defaultEntries = configService.getDefaultEntries();
+    String logFormat = defaultEntries.getLogformat();
 
-		entityManager.clear();
+    HttpdLogParser httpdLogParser = new HttpdLogParser(logFormat);
 
-		entityManager.getTransaction().begin();
-		entityManager.setFlushMode(FlushModeType.AUTO);
+    interrupted = false;
 
-		String line = null;
-		StatisticsData statistics = new StatisticsData();
+    BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
 
-		long start = System.currentTimeMillis();
-		long time = System.currentTimeMillis();
+    String line = null;
+    StatisticsData statistics = new StatisticsData();
 
-		LogOrigin logFileOrigin = new LogOrigin();
-		logFileOrigin.setPath(origin);
-		entityManager.persist(logFileOrigin);
+    long start = System.currentTimeMillis();
+    long time = System.currentTimeMillis();
 
-		try {
-			while (interrupted == false && (line = reader.readLine()) != null) {
-			    statistics.incrementCount();
+    LogOrigin logFileOrigin = new LogOrigin();
+    logFileOrigin.setPath(origin);
+    entityManager.persist(logFileOrigin);
 
-				if (statistics.getCount() % 5000 == 0) {
-					long duration = System.currentTimeMillis() - time;
-					Logger.log("Fortschritt: Zeile {0} ({1}ms)", statistics.getCount(), duration);
-					time = System.currentTimeMillis();
-				}
+    try {
+      while (interrupted == false && (line = reader.readLine()) != null) {
+        statistics.incrementCount();
 
-				
-                LogDataRow data = httpdLogParser.parseLine(line);
+        if (statistics.getCount() % 5000 == 0) {
+          long duration = System.currentTimeMillis() - time;
+          logger.log("Fortschritt: Zeile {0} ({1}ms)", statistics.getCount(), duration);
+          time = System.currentTimeMillis();
+        }
 
-				if (data == null) {
-					statistics.incrementError();
-					continue;
-				}
 
-				if (filter.isValid(data) == false) {
-					statistics.incrementFiltered();
-					continue;
-				}
+        LogDataRow data = httpdLogParser.parseLine(line);
 
-				statistics.incrementSuccess();
+        if (data == null) {
+          statistics.incrementError();
+          continue;
+        }
 
-				data.setOrigin(logFileOrigin);
+        if (filter.isValid(data) == false) {
+          statistics.incrementFiltered();
+          continue;
+        }
 
-				entityManager.persist(data);
+        statistics.incrementSuccess();
 
-				if (statistics.getSuccess() % 50 == 0) {
-					entityManager.flush();
-					entityManager.clear();
-				}
+        data.setOrigin(logFileOrigin);
 
-				if (statistics.getSuccess() % 1000 == 0) {
-					entityManager.getTransaction().commit();
-					entityManager.getTransaction().begin();
-				}
-			}
-		} catch (Exception e) {
-			Logger.log("{0}: {1}", statistics.getCount(), line, e);
-			entityManager.getTransaction().commit();
-			throw new RuntimeException(e);
-		} finally {
-			IOUtils.closeQuietly(reader);
-		}
-		
-		logFileOrigin = entityManager.find(LogOrigin.class, logFileOrigin.getId());
-		logFileOrigin.setTotalCount(statistics.getCount());
-		logFileOrigin.setSuccessCount(statistics.getSuccess());
-		logFileOrigin.setErrorsCount(statistics.getError());
-		logFileOrigin.setFilteredCount(statistics.getFiltered());
-		
-		entityManager.getTransaction().commit();
+        entityManager.persist(data);
 
-		long duration = System.currentTimeMillis() - start;
-		statistics.setDuration(duration);
+        if (statistics.getSuccess() % 50 == 0) {
+          entityManager.flush();
+          entityManager.clear();
+        }
 
-		if (interrupted) {
-			Logger.log("Import unterbrochen. Bisher importiert: {0}.", statistics.getCount());
-		} else {
-			Logger.log("Import fertig.");
-		}
+        if (statistics.getSuccess() % 1000 == 0) {
+          // TODO: close and recreate transaction for better performance ...
+        }
+      }
+    } catch (Exception e) {
+      logger.log("{0}: {1}", statistics.getCount(), line, e);
+      entityManager.getTransaction().commit();
+      throw new RuntimeException(e);
+    } finally {
+      IOUtils.closeQuietly(reader);
+    }
 
-		Logger.log(statistics.getStatisticsString());
+    logFileOrigin = entityManager.find(LogOrigin.class, logFileOrigin.getId());
+    logFileOrigin.setTotalCount(statistics.getCount());
+    logFileOrigin.setSuccessCount(statistics.getSuccess());
+    logFileOrigin.setErrorsCount(statistics.getError());
+    logFileOrigin.setFilteredCount(statistics.getFiltered());
 
-		if (interrupted == true) {
-			throw new ImportInterruptedException(statistics);
-		}
-		
-		return statistics;
-	}
+    long duration = System.currentTimeMillis() - start;
+    statistics.setDuration(duration);
 
-	public void clearTables() {
-		Logger.log("Clearing Table... ");
-		entityManager.getTransaction().begin();
-		entityManager.createQuery("delete from " + LogDataRow.class.getSimpleName()).executeUpdate();
-		entityManager.getTransaction().commit();
-		Logger.log("[DONE]");
-	}
+    if (interrupted) {
+      logger.log("Import unterbrochen. Bisher importiert: {0}.", statistics.getCount());
+    } else {
+      logger.log("Import fertig.");
+    }
 
-	public void interrupt() {
-		this.interrupted = true;
-	}
+    logger.log(statistics.getStatisticsString());
+
+    if (interrupted == true) {
+      throw new ImportInterruptedException(statistics);
+    }
+
+    return statistics;
+  }
+
+  public void clearTables() {
+    logger.log("Clearing Table... ");
+    entityManager.createQuery("delete from " + LogDataRow.class.getSimpleName()).executeUpdate();
+    logger.log("[DONE]");
+  }
+
+  public void interrupt() {
+    this.interrupted = true;
+  }
 
 }

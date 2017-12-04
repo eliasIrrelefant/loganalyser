@@ -1,23 +1,23 @@
 package it.eup.loganalyser.service;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import javax.enterprise.context.ApplicationScoped;
-import javax.inject.Inject;
-import javax.persistence.EntityManager;
-
 import it.eup.loganalyser.dao.OriginDao;
 import it.eup.loganalyser.entity.LogOrigin;
 import it.eup.loganalyser.model.OriginOverviewModel;
+import java.util.ArrayList;
+import java.util.List;
+import javax.persistence.EntityManager;
+import javax.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
-@ApplicationScoped
+@Service
+@Transactional
 public class DataCleanupService {
 
-	@Inject
+	@Autowired
 	OriginDao originDao;
 
-	@Inject
+	@Autowired
 	EntityManager entityManager;
 
 	public void deleteOrigins(List<Long> ids) {
@@ -25,11 +25,11 @@ public class DataCleanupService {
 			return;
 		}
 
-		originDao.deleteOrigins(ids);
+		ids.forEach(originDao::delete);
 	}
 
 	public List<OriginOverviewModel> findAllOrigins() {
-		List<LogOrigin> entries = originDao.getAllLogOrigins();
+		List<LogOrigin> entries = originDao.findAll();
 		List<OriginOverviewModel> result = new ArrayList<OriginOverviewModel>();
 		
 		for (LogOrigin entity : entries) {
